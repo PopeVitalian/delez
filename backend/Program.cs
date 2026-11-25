@@ -93,4 +93,9 @@ app.UseAuthorization();
 
 app.MapControllers();
 
+using (var obseg = app.Services.CreateScope())
+{
+    obseg.ServiceProvider.GetRequiredService<DelezDbContext>().Database.Migrate();
+}
+
 app.Run();

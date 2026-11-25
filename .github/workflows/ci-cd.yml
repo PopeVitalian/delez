@@ -1,0 +1,123 @@
+name: CI/CD
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+concurrency:
+  group: cicd-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+      # predpomnenje NuGet paketov
+      - uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('backend/**/*.csproj', 'backend.tests/**/*.csproj') }}
+          restore-keys: nuget-${{ runner.os }}-
+      - name: Lint backend (dotnet format)
+        run: dotnet format --verify-no-changes
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Lint frontend (eslint)
+        working-directory: frontend
+        run: |
+          npm ci
+          npm run lint
+
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+      - uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('backend/**/*.csproj', 'backend.tests/**/*.csproj') }}
+          restore-keys: nuget-${{ runner.os }}-
+      - name: Build + publish backend
+        run: dotnet publish backend -c Release -o publish
+      - name: Shrani backend kot artefakt
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-publish
+          path: publish/
+          retention-days: 7
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Build frontend (z URL-jem nameščenega backenda)
+        working-directory: frontend
+        env:
+          VITE_API_URL: ${{ vars.VITE_API_URL }}
+        run: |
+          npm ci
+          npm run build
+      - name: Shrani frontend kot artefakt
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-dist
+          path: frontend/dist
+          retention-days: 7
+
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+      - uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('backend/**/*.csproj', 'backend.tests/**/*.csproj') }}
+          restore-keys: nuget-${{ runner.os }}-
+      - name: Zaženi teste s pokritostjo
+        run: >
+          dotnet test backend.tests -c Release
+          --collect:"XPlat Code Coverage"
+          --results-directory ./coverage
+      - name: Shrani poročilo o pokritosti kot artefakt
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: coverage/
+          retention-days: 7
+
+  deploy:
+    needs: [lint, build, test] # samo ob uspehu vseh treh
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment: production # Settings → Environments → production
+    steps:
+      - name: Prenesi artefakt frontenda
+        uses: actions/download-artifact@v4
+        with:
+          name: frontend-dist
+          path: dist
+      - name: Namesti frontend na Netlify (brez ponovne gradnje)
+        run: |
+          npm i -g netlify-cli
+          netlify deploy --prod --dir=dist \
+            --site "${{ secrets.NETLIFY_SITE_ID }}" \
+            --auth "${{ secrets.NETLIFY_AUTH_TOKEN }}"
+      - name: Namesti backend na Render (deploy hook)
+        run: curl -fsS -X POST "${{ secrets.RENDER_DEPLOY_HOOK_URL }}"
+      - name: Smoke check — je aplikacija dejansko živa?
+        run: curl -fsS "${{ secrets.APP_PUBLIC_URL }}" > /dev/null
