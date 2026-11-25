@@ -1,5 +1,7 @@
 # Delež
 
+[![CI/CD](https://github.com/PopeVitalian/delez/actions/workflows/ci-cd.yml/badge.svg)](https://github.com/PopeVitalian/delez/actions/workflows/ci-cd.yml)
+
 Delež je spletna aplikacija za beleženje in delitev skupnih stroškov v gospodinjstvih. Člani skupine vnašajo stroške in jih razdelijo med tiste, ki jih koristijo, aplikacija pa sproti izračuna, kdo je komu koliko dolžan, in predlaga čim manj nakazil za poravnavo dolgov. Uporabnik je lahko član več skupin (npr. "Stanovanje Maribor" in "Doma"), pri čemer so finance posameznih skupin ločene, pravice pa so odvisne od njegove vloge v skupini.
 
 ## Tehnologije
@@ -59,6 +61,20 @@ Potrebuješ [.NET 10 SDK](https://dotnet.microsoft.com/download), [Node.js](http
 Aplikacija teče na http://localhost:5173, Swagger UI pa na http://localhost:5000/swagger. Nastavitve za lokalni razvoj so že v `backend/appsettings.Development.json`, zato dodatna konfiguracija ni potrebna.
 
 Ob naslednjih zagonih zadostujejo `docker compose up -d`, `dotnet run --project backend` in `npm run dev`. Ko potegneš nove spremembe, ponovno poženi `dotnet ef database update --project backend` in `npm install`.
+
+## Nameščena aplikacija
+
+- **Frontend:** https://<tvoja-stran>.netlify.app
+- **Backend:** https://<tvoj-api>.onrender.com (Swagger: /swagger)
+
+## CI/CD cevovod (GitHub Actions)
+
+Cevovod se sproži ob vsakem pull requestu v `main` in ob vsakem pushu v `main` ter poteka v štirih fazah:
+
+1. **lint** — preveri slog kode z `dotnet format` (backend) in ESLint (frontend). Napaka v slogu povzroči padec cevovoda.
+2. **build** — zgradi backend (`dotnet publish`) in frontend (`vite build`); odvisnosti NuGet in npm so predpomnjene, rezultati gradnje se shranijo kot artefakti.
+3. **test** — požene 15 xUnit testov poslovne logike (delitev stroškov, izračun stanj, predlog nakazil) in shrani poročilo o pokritosti kode kot artefakt.
+4. **deploy** — samo ob pushu v `main` in samo, če so lint, build in test uspešni: frontend se iz artefakta gradnje namesti na Netlify, backend pa prek deploy hooka na Render (okolje `production`).
 
 ## Dokumentacija
 
