@@ -64,8 +64,7 @@ Ob naslednjih zagonih zadostujejo `docker compose up -d`, `dotnet run --project 
 
 ## Nameščena aplikacija
 
-- **Frontend:** https://<tvoja-stran>.netlify.app
-- **Backend:** https://<tvoj-api>.onrender.com (Swagger: /swagger)
+- **Frontend:** https://delez-frontend.netlify.app/
 
 ## CI/CD cevovod (GitHub Actions)
 
