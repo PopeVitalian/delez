@@ -12,6 +12,7 @@ function odjava() {
   avtentikacija.odjava()
   router.push({ name: 'prijava' })
 }
+const neuporabljenaSpremenljivka = 42;
 </script>
 
 <template>
